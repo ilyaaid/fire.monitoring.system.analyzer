@@ -120,28 +120,22 @@ def apply_morphology_preserve_color(original_img, binary_array):
 
 
 def run(image_path, output_dir, origin):
-    # Создаем папку для результатов, если ее нет
     os.makedirs(output_dir, exist_ok=True)
 
-    # Извлекаем timestamp-папку из пути
-    # Пример: results_5000/20240530_163000 -> 20240530_163000
     timestamp_folder = os.path.basename(output_dir)
     base_results_folder = os.path.basename(os.path.dirname(output_dir))
 
-    # Загрузка и обработка изображения
     img = Image.open(image_path)
     if img.mode != "RGB":
         img = img.convert("RGB")
 
     img_array = np.array(img)
 
-    # Детекция огня
     fire_pixels, fire_mask = detect_fire_by_color(img_array)
     fire_img = Image.fromarray(fire_pixels)
 
     base_name = os.path.basename(image_path)
 
-    # Морфологические операции
     img_gray = fire_img.convert("L")
     img_binary = np.array(img_gray) > 0
 
@@ -165,7 +159,6 @@ def run(image_path, output_dir, origin):
         percent = calculate_white_percentage(result)
         print(f"{name}: {percent:.2f}% белых пикселей")
 
-        # Формируем корректный URL
         relative_url = f"{timestamp_folder}/{filename}"
         processed_url = f"{origin}results/{relative_url}"
 

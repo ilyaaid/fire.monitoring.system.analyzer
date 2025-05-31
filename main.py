@@ -113,14 +113,31 @@ if __name__ == "__main__":
         default=5000,
         help="Port to run the server on (default: 5000)",
     )
+    parser.add_argument(
+        "--latitude",
+        type=float,
+        help="Override default latitude",
+    )
+    parser.add_argument(
+        "--longitude",
+        type=float,
+        help="Override default longitude",
+    )
     args = parser.parse_args()
 
-    # Создание папки results_<порт>
+    if args.latitude is not None and args.longitude is not None:
+        LATITUDE = args.latitude
+        LONGITUDE = args.longitude
+    else:
+        LATITUDE = MOSCOW_LATITUDE + random.uniform(-0.3, 0.3)
+        LONGITUDE = MOSCOW_LONGITUDE + random.uniform(-0.3, 0.3)
+
     RESULTS_DIR = f"results_{args.port}"
     os.makedirs(RESULTS_DIR, exist_ok=True)
     app.config["RESULTS_DIR"] = RESULTS_DIR
 
     print(f"[START] Server running on port {args.port}")
     print(f"[CONFIG] Results will be saved to: {RESULTS_DIR}")
+    print(f"[CONFIG] Coordinates: latitude={LATITUDE}, longitude={LONGITUDE}")
 
     app.run(host="0.0.0.0", port=args.port, debug=True)

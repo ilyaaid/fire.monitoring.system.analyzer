@@ -16,21 +16,19 @@ def run(image_path, output_dir, origin):
     results = model.predict(source=image_path)
     
     output_filename = 'yolo_'+filename
-    # Сохраняем результат
+
     final_path = os.path.join(output_dir, output_filename)
     results[0].save(final_path)
     
-    # Собираем статистику по обнаруженным пожарам
     fire_probs = []
     for result in results:
         for box in result.boxes:
-            if box.cls == 0:  # предполагаем, что класс 0 - это "огонь"
+            if box.cls == 0:
                 fire_probs.append(box.conf.item())
 
     relative_url = f"{timestamp_folder}/{output_filename}"
     image_url = f"{origin}results/{relative_url}"
-    
-    # Рассчитываем статистику
+
     result_stats = {
         "path": image_url,
         "max_prob": max(fire_probs) if fire_probs else 0,
