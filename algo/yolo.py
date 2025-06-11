@@ -35,5 +35,7 @@ def run(image_path, output_dir, origin):
         "mean_prob": np.mean(fire_probs) if fire_probs else 0,
         "fire_count": len(fire_probs)
     }
+
+    print("yolo finish")
     
     return result_stats

@@ -6,17 +6,11 @@ import random
 from datetime import datetime
 import shutil
 import argparse
-from urllib.parse import urlparse
 
 app = Flask(__name__)
 
 FIRE_IMAGES_DIR = "images/fire"
 NOFIRE_IMAGES_DIR = "images/nofire"
-
-MOSCOW_LATITUDE = 55.638062
-MOSCOW_LONGITUDE = 31.882613
-LATITUDE = MOSCOW_LATITUDE + random.uniform(-0.3, 0.3)
-LONGITUDE = MOSCOW_LONGITUDE + random.uniform(-0.3, 0.3)
 
 
 def get_random_image():
@@ -57,7 +51,6 @@ def clean_old_results(results_dir, max_age_minutes=5):
 
 @app.route("/results/<path:filename>")
 def results(filename):
-    print(app.config["RESULTS_DIR"])
     return send_from_directory(app.config["RESULTS_DIR"], filename)
 
 
@@ -87,8 +80,6 @@ def analyze_image():
     original_image_url = f"{origin}results/{timestamp}/{image_name}"
 
     response = {
-        "id": str(urlparse(request.host_url).port),
-        "coordinates": {"latitude": LATITUDE, "longitude": LONGITUDE},
         "timestamp": datetime.now().isoformat(),
         "image_info": {
             "path": original_image_url,
@@ -113,24 +104,7 @@ if __name__ == "__main__":
         default=5000,
         help="Port to run the server on (default: 5000)",
     )
-    parser.add_argument(
-        "--latitude",
-        type=float,
-        help="Override default latitude",
-    )
-    parser.add_argument(
-        "--longitude",
-        type=float,
-        help="Override default longitude",
-    )
     args = parser.parse_args()
-
-    if args.latitude is not None and args.longitude is not None:
-        LATITUDE = args.latitude
-        LONGITUDE = args.longitude
-    else:
-        LATITUDE = MOSCOW_LATITUDE + random.uniform(-0.3, 0.3)
-        LONGITUDE = MOSCOW_LONGITUDE + random.uniform(-0.3, 0.3)
 
     RESULTS_DIR = f"results_{args.port}"
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -138,6 +112,5 @@ if __name__ == "__main__":
 
     print(f"[START] Server running on port {args.port}")
     print(f"[CONFIG] Results will be saved to: {RESULTS_DIR}")
-    print(f"[CONFIG] Coordinates: latitude={LATITUDE}, longitude={LONGITUDE}")
 
     app.run(host="0.0.0.0", port=args.port, debug=True)
