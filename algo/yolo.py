@@ -1,41 +1,30 @@
 from ultralytics import YOLO
 import os
 import numpy as np
+from upload_to_s3 import upload_file_to_s3
+import tempfile
 
-def run(image_path, output_dir, origin):
-    os.makedirs(output_dir, exist_ok=True)
+def run(image_path, output_dir):
+    model = YOLO(os.path.join(os.path.dirname(__file__), "yolo", "best_200.pt"))
 
-    timestamp_folder = os.path.basename(output_dir)
-    base_results_folder = os.path.basename(os.path.dirname(output_dir))
+    results = model.predict(source=image_path)
 
     filename = os.path.basename(image_path)
-    dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(dir, "yolo", "best.pt")
-    
-    model = YOLO(model_path)
-    results = model.predict(source=image_path)
-    
-    output_filename = 'yolo_'+filename
+    output_filename = f"{output_dir}/yolo_{filename}"
 
-    final_path = os.path.join(output_dir, output_filename)
-    results[0].save(final_path)
-    
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        results[0].save(tmp.name)
+        image_url = upload_file_to_s3(tmp.name, output_filename)
+
     fire_probs = []
     for result in results:
         for box in result.boxes:
-            if box.cls == 0:
+            if box.cls == 0 or box.cls == 1:
                 fire_probs.append(box.conf.item())
 
-    relative_url = f"{timestamp_folder}/{output_filename}"
-    image_url = f"{origin}results/{relative_url}"
-
-    result_stats = {
+    return {
         "path": image_url,
         "max_prob": max(fire_probs) if fire_probs else 0,
         "mean_prob": np.mean(fire_probs) if fire_probs else 0,
-        "fire_count": len(fire_probs)
+        "fire_count": len(fire_probs),
     }
-
-    print("yolo finish")
-    
-    return result_stats

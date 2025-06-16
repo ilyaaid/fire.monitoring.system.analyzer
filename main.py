@@ -1,11 +1,11 @@
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, request
 import algo.pixels as px
 import algo.yolo as yolo
 import os
 import random
 from datetime import datetime
-import shutil
 import argparse
+from upload_to_s3 import upload_file_to_s3
 
 app = Flask(__name__)
 
@@ -35,49 +35,25 @@ def get_random_image():
     return image_path, image_name, image_type
 
 
-def clean_old_results(results_dir, max_age_minutes=5):
-    now = datetime.now()
-    for folder_name in os.listdir(results_dir):
-        folder_path = os.path.join(results_dir, folder_name)
-        if os.path.isdir(folder_path):
-            try:
-                folder_time = datetime.strptime(folder_name, "%Y%m%d_%H%M%S")
-                age_minutes = (now - folder_time).total_seconds() / 60
-                if age_minutes > max_age_minutes:
-                    shutil.rmtree(folder_path)
-            except ValueError:
-                continue
-
-
-@app.route("/results/<path:filename>")
-def results(filename):
-    return send_from_directory(app.config["RESULTS_DIR"], filename)
-
-
 @app.route("/analyze", methods=["GET"])
 def analyze_image():
-    base_results_dir = app.config["RESULTS_DIR"]
-    clean_old_results(base_results_dir, max_age_minutes=300)
-
-    origin = request.url_root
+    [host, port] = request.host.split(':')
     image_path, image_name, image_type = get_random_image()
 
     if not image_path:
         return jsonify({"error": "No images found"}), 404
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result_subdir = os.path.join(base_results_dir, timestamp)
-    os.makedirs(result_subdir, exist_ok=True)
+    s3_subdir = f"{host}_{port}/{timestamp}"
+    
+    original_s3_key = f"{s3_subdir}/{image_name}"
+    original_image_url = upload_file_to_s3(image_path, original_s3_key)
 
-    print(f"[INFO] Saving results to: {result_subdir}")
+    if not original_image_url:
+        return jsonify({"error": "Не удалось загрузить оригинальное изображение"}), 500
 
-    original_in_results = os.path.join(result_subdir, image_name)
-    shutil.copy2(image_path, original_in_results)
-
-    px_results = px.run(image_path, result_subdir, origin)
-    yolo_results = yolo.run(image_path, result_subdir, origin)
-
-    original_image_url = f"{origin}results/{timestamp}/{image_name}"
+    px_results = px.run(image_path, s3_subdir)
+    yolo_results = yolo.run(image_path, s3_subdir)
 
     response = {
         "timestamp": datetime.now().isoformat(),
@@ -86,7 +62,10 @@ def analyze_image():
             "name": image_name,
             "type": image_type,
         },
-        "results": {"pixels": px_results, "yolo": yolo_results},
+        "results": {
+            "pixels": px_results,
+            "yolo": yolo_results,
+        },
         "fire": bool(
             px_results["opened_closed"]["white_percentage"] > 0
             or yolo_results["fire_count"] > 0

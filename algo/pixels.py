@@ -1,6 +1,8 @@
 import numpy as np
 from PIL import Image
 import os
+from upload_to_s3 import upload_file_to_s3
+import tempfile
 
 
 def rgb_to_hsv(rgb_image):
@@ -118,23 +120,11 @@ def apply_morphology_preserve_color(original_img, binary_array):
     result_img_array[binary_array == 0] = 0
     return Image.fromarray(result_img_array)
 
-
-def run(image_path, output_dir, origin):
-    os.makedirs(output_dir, exist_ok=True)
-
-    timestamp_folder = os.path.basename(output_dir)
-    base_results_folder = os.path.basename(os.path.dirname(output_dir))
-
-    img = Image.open(image_path)
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-
+def run(image_path, output_dir):
+    img = Image.open(image_path).convert("RGB")
     img_array = np.array(img)
-
     fire_pixels, fire_mask = detect_fire_by_color(img_array)
     fire_img = Image.fromarray(fire_pixels)
-
-    base_name = os.path.basename(image_path)
 
     img_gray = fire_img.convert("L")
     img_binary = np.array(img_gray) > 0
@@ -149,19 +139,17 @@ def run(image_path, output_dir, origin):
 
     results = {}
 
+    base_name = os.path.basename(image_path)
     for name, result in operations.items():
         processed_img = apply_morphology_preserve_color(img, result)
-        filename = f"{name}_{base_name}"
-        processed_path = os.path.join(output_dir, filename)
-        processed_img.save(processed_path)
-        print(f"Результат {name} сохранен в: {processed_path}")
+        filename = f"{output_dir}/{name}_{base_name}"
+
+        # Временный файл
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            processed_img.save(tmp.name)
+            file_url = upload_file_to_s3(tmp.name, filename)
 
         percent = calculate_white_percentage(result)
-        print(f"{name}: {percent:.2f}% белых пикселей")
-
-        relative_url = f"{timestamp_folder}/{filename}"
-        processed_url = f"{origin}results/{relative_url}"
-
-        results[name] = {"path": processed_url, "white_percentage": percent}
+        results[name] = {"path": file_url, "white_percentage": percent}
 
     return results
